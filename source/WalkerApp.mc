@@ -2,9 +2,9 @@ using Toybox.WatchUi as Ui;
 using Toybox.Application as App;
 
 class WalkerApp extends App.AppBase {
-	
+
 	var mainView;
-	
+
 	function initialize() {
 		AppBase.initialize();
 	}
@@ -15,12 +15,12 @@ class WalkerApp extends App.AppBase {
         app.setProperty("as", mainView.steps);
         app.setProperty("ls", mainView.lapSteps);
     }
-	
+
 	function onSettingsChanged() {
 		mainView.readSettings();
 		Ui.requestUpdate();
 	}
-	
+
 	function getInitialView() {
 		mainView = new WalkerView();
 		return [mainView];
