@@ -2,14 +2,15 @@ using Toybox.WatchUi as Ui;
 using Toybox.Application as App;
 using Toybox.Math as Math;
 using Toybox.UserProfile as User;
+using Toybox.Graphics as Gfx;
+using Toybox.FitContributor as Fit;
 
 class WalkerView extends Ui.DataField {
 
-	/* NOTE: Violation of SOLID principles (and general good maintainable code hygene) here is intentional. Some Garmin watches only
-	 * give you 16KB (!) of memory to work with for a DataField, and about 9KB of that allowance gets used up on the DataField itself
-	 * before you've written a line of code. Keeping memory usage that low is a challenge, and requires a Scrooge-like accounting of
-	 * memory allocations. No unnecessary intermediate variables, no single instance classes, no single call functions etc. It makes
-	 * the code hard to read, but the codebase is sufficiently small that it shouldn't be a problem
+	/* NOTE: This version of the codebase is intended to support Garmin watches with 16KB of working memory per DataField, of which about
+	 * 9KB of gets used up on the DataField itself before you've written a line of code. Keeping memory usage that low is a challenge, and requires
+	 * a Scrooge-like accounting of memory allocations. This means using no unnecessary intermediate variables, single instance classes, no single
+	 * call functions etc. It makes the code hard to read, but it's necessary to squeeze the required functionality into the available memory space.
 	 */
 
 	var is24Hour = false;
@@ -18,7 +19,7 @@ class WalkerView extends Ui.DataField {
 	var darkModeFromSetting = false;
 
 	var stepsIcon;
-	var caloriesIcon;
+	var floorsIcon;
 
 	var batteryIconColour;
 	var batteryTextColour;
@@ -56,23 +57,17 @@ class WalkerView extends Ui.DataField {
 	var paceOrSpeed;
 	var time;
 	var daySteps;
-	var calories;
-	var dayCalories;
+	var totalAscent;
+	var floorsClimbed;
 	var stepGoalProgress;
 
 	// FIT contributor fields
 	var stepsActivityField;
 	var stepsLapField;
 
-	(:memory16K) var view32;
-
 	function initialize() {
 
 		DataField.initialize();
-
-		if (WalkerView has :view32) {
-			view32 = new WalkerViewGTE32K();
-		}
 
 		readSettings();
 
@@ -80,24 +75,26 @@ class WalkerView extends Ui.DataField {
 
 		// If the activity has restarted after "resume later", load previously stored steps values
 		if (info != null && info.elapsedTime > 0) {
-	        var app = Application.getApp();
+			var app = Application.getApp();
 			steps = app.getProperty("as");
-	        lapSteps = app.getProperty("ls");
-	        app = null;
-	        if (steps == null) { steps = 0; }
-	        if (lapSteps == null) { lapSteps = 0; }
-	    }
+			activityStepsAtPreviousLap = app.getProperty("ls");
+			app = null;
+			if (steps == null) { steps = 0; }
+			if (lapSteps == null) { lapSteps = 0; }
+			// Consolidate the previously stored steps, otherwise we will lose them when steps are next calculated
+			consolidatedSteps = steps;
+		}
 
 		var stepsLabel = Ui.loadResource(Rez.Strings.steps);
 		var stepsUnits = Ui.loadResource(Rez.Strings.stepsUnits);
 
 		// Create FIT contributor fields
-		stepsActivityField = createField(stepsLabel, 0, 6 /* Fit.DATA_TYPE_UINT32 */, { :mesgType => 18 /* Fit.MESG_TYPE_SESSION */, :units => stepsUnits });
-        stepsLapField = createField(stepsLabel, 1, 6 /* Fit.DATA_TYPE_UINT32 */, { :mesgType => 19 /* Fit.MESG_TYPE_LAP */, :units => stepsUnits });
+		stepsActivityField = createField("steps", 0, 6 /* Fit.DATA_TYPE_UINT32 */, { :mesgType => Fit.MESG_TYPE_SESSION, :units => stepsUnits });
+		stepsLapField = createField("steps", 1, 6 /* Fit.DATA_TYPE_UINT32 */, { :mesgType => Fit.MESG_TYPE_LAP, :units => stepsUnits });
 
-        // Set initial steps FIT contributions to zero
-        stepsActivityField.setData(0);
-        stepsLapField.setData(0);
+		// Set initial steps FIT contributions to zero
+		stepsActivityField.setData(0);
+		stepsLapField.setData(0);
 	}
 
 	// Called on initialization and when settings change (from a hook in WalkerApp.mc)
@@ -115,14 +112,14 @@ class WalkerView extends Ui.DataField {
 		// Speed / pace mode
 		paceOrSpeedMode = app.getProperty("pm");
 		if (paceOrSpeedMode > 0) {
-			paceOrSpeedData = new DataQueue(paceOrSpeedMode);
+			paceOrSpeedData = new DataQueue(paceOrSpeedMode, true);
 		} else {
 			paceOrSpeedData = null;
 		}
 
 		heartRateMode = app.getProperty("hm");
 		if (heartRateMode > 0) {
-			heartRateData = new DataQueue(heartRateMode);
+			heartRateData = new DataQueue(heartRateMode, true);
 		} else {
 			heartRateData = null;
 		}
@@ -134,10 +131,6 @@ class WalkerView extends Ui.DataField {
 		kmOrMileInKmPace = deviceSettings.paceUnits == 0 /* System.UNIT_METRIC */ ? 1.0f : 1.60934f;
 		distanceUnitsLabel = deviceSettings.distanceUnits == 0 /* System.UNIT_METRIC */ ? "km" : "mi";
 		averagePaceOrSpeedUnitsLabel = showSpeedInsteadOfPace ? "/hr" : "/" + (deviceSettings.paceUnits == 0 /* System.UNIT_METRIC */ ? "km" : "mi");
-
-		if (WalkerView has :view32) {
-			view32.readSettings(self, deviceSettings, app);
-		}
 	}
 
 	// Handle activity timer events
@@ -185,7 +178,7 @@ class WalkerView extends Ui.DataField {
 		heartRate = heartRateMode <= 0
 			? info.currentHeartRate
 			: heartRateData != null
-				? heartRateData.average()
+				? heartRateData.average
 				: null;
 
 		// Heart rate zone
@@ -216,7 +209,7 @@ class WalkerView extends Ui.DataField {
 		var speed = paceOrSpeedMode == 0
 			? info.currentSpeed
 			: paceOrSpeedData != null
-				? paceOrSpeedData.average()
+				? paceOrSpeedData.average
 				: null;
 		paceOrSpeed = speed != null && speed > 0.1 // Walking at a speed of less than 0.22 miles per hour probably isn't walking
 			? showSpeedInsteadOfPace
@@ -256,13 +249,13 @@ class WalkerView extends Ui.DataField {
 				: daySteps / activityMonitorInfo.stepGoal.toFloat()
 			: 0;
 
-		// Calories
-		calories = info.calories;
-		dayCalories = activityMonitorInfo.calories;
-
-		if (WalkerView has :view32) {
-			view32.compute(self, info, activityMonitorInfo);
-		}
+		// Total Ascent and Total Floors
+		totalAscent = info.totalAscent;
+		// if (activityMonitorInfo has :floorsClimbed) {
+		floorsClimbed = activityMonitorInfo.floorsClimbed;
+		// } else {
+		// 	floorsClimbed = 0;
+		// }
 	}
 
 	function onUpdate(dc) {
@@ -301,7 +294,7 @@ class WalkerView extends Ui.DataField {
 			batteryIconColour = 0xFFAA00 /* Gfx.COLOR_YELLOW */;
 			batteryTextColour = 0x000000 /* Gfx.COLOR_BLACK */;
 		} else {
-			batteryIconColour = darkMode ?  0xAAAAAA /* Gfx.COLOR_LT_GRAY */ :  0x555555 /* Gfx.COLOR_DK_GRAY */;
+			batteryIconColour = darkMode ? 0xAAAAAA /* Gfx.COLOR_LT_GRAY */ : 0x555555 /* Gfx.COLOR_DK_GRAY */;
 			if (darkMode) { batteryTextColour = 0x000000 /* Gfx.COLOR_BLACK */; }
 		}
 
@@ -334,30 +327,30 @@ class WalkerView extends Ui.DataField {
 
 		// Max width values for layout debugging
 		/*
-		averagePaceOrSpeed = 88.88;
+		averagePaceOrSpeed = 888888;
 		distance = 808.88;
 		heartRate = 888;
 		paceOrSpeedText = "8:88:88";
 		timeText = "8:88:88";
 		steps = 88888;
 		daySteps = 88888;
-		calories = 88888;
-		dayCalories = 88888;
+		totalAscent = 88888;
+		floorsClimbed = 88888;
 		stepGoalProgress = 0.75;
 		shrinkMiddleText = true;
 		*/
 
 		// Realistic static values for screenshots
 		/*
-		averagePaceOrSpeed = 12.22;
+		averagePaceOrSpeed = 888888;
 		distance = 1.92;
 		heartRate = 106;
 		paceOrSpeedText = "12:15";
 		timeText = "23:31";
 		steps = 2331;
 		daySteps = 7490;
-		calories = 135;
-		dayCalories = 1742;
+		totalAscent = 135;
+		floorsClimbed = 1742;
 		stepGoalProgress = 0.75;
 		*/
 
@@ -365,7 +358,7 @@ class WalkerView extends Ui.DataField {
 		if (previousDarkMode != darkMode) {
 			previousDarkMode = darkMode;
 			stepsIcon = Ui.loadResource(darkMode ? Rez.Drawables.isd : Rez.Drawables.is);
-			caloriesIcon = Ui.loadResource(darkMode ? Rez.Drawables.icd : Rez.Drawables.ic);
+			floorsIcon = Ui.loadResource(darkMode ? Rez.Drawables.icd : Rez.Drawables.ic);
 		}
 
 		// Render background
@@ -375,7 +368,7 @@ class WalkerView extends Ui.DataField {
 		// Render horizontal lines
 		dc.setColor(0xAAAAAA /* Gfx.COLOR_LT_GRAY */, -1 /* Gfx.COLOR_TRANSPARENT */);
 		for (var x = 0; x < (layout[3] /* lines[3] */ > 0 ? 4 : 3); x++) {
-        	dc.drawLine(0, layout[x] /* lines[x] */, dc.getWidth(), layout[x]);
+			dc.drawLine(0, layout[x] /* lines[x] */, dc.getWidth(), layout[x]);
 		}
 
 		// Render vertical lines
@@ -384,7 +377,7 @@ class WalkerView extends Ui.DataField {
 
 		// Render step goal progress bar
 		if (stepGoalProgress != null && stepGoalProgress > 0) {
-			dc.setColor(darkMode ? 0x00FF00 /* Gfx.COLOR_GREEN */ : 0x00AA00 /* Gfx.COLOR_DK_GREEN */, -1 /* Gfx.COLOR_TRANSPARENT */);
+			dc.setColor(darkMode ? Gfx.COLOR_GREEN : 0x00AA00 /* Gfx.COLOR_DK_GREEN */, -1 /* Gfx.COLOR_TRANSPARENT */);
 			dc.drawRectangle(layout[4] /* stepGoalProgressOffsetX */, layout[2] /* lines[2] */ - 1, (dc.getWidth() - (layout[4] /* stepGoalProgressOffsetX */ * 2)) * stepGoalProgress, 3);
 		}
 
@@ -397,10 +390,10 @@ class WalkerView extends Ui.DataField {
 		if (!is24Hour && hour == 0) { hour = 12; }
 		dc.drawText(halfWidth + layout[7] /* clockOffsetX */, layout[6] /* clockY */, layout[26] /* timeFont */,
 			hour.format(is24Hour ? "%02d" : "%d")
-			  + ":"
-			  + currentTime.min.format("%02d")
-			  + (is24Hour ? "" : currentTime.hour >= 12 ? "pm" : "am"),
-			  1 /* Gfx.TEXT_JUSTIFY_CENTER */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
+				+ ":"
+				+ currentTime.min.format("%02d")
+				+ (is24Hour ? "" : currentTime.hour >= 12 ? "pm" : "am"),
+				1 /* Gfx.TEXT_JUSTIFY_CENTER */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
 
 		// Render average pace or speed
 		dc.drawText(halfWidth - layout[5] /* centerOffsetX */, layout[8] /* topRowY */, layout[27] /* topRowFont */,
@@ -474,10 +467,10 @@ class WalkerView extends Ui.DataField {
 		dc.drawText(halfWidth - layout[5] /* centerOffsetX */, layout[18] /* bottomRowUpperTextY */, layout[32] /* bottomRowFont */,
 			(steps == null ? 0 : steps).format("%d"), 0 /* Gfx.TEXT_JUSTIFY_RIGHT */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
 
-		// Render calories
-		dc.drawBitmap(dc.getWidth() - layout[20] /* bottomRowIconX */ - caloriesIcon.getWidth(), layout[21] /* bottomRowIconY */, caloriesIcon);
+		// Render totalAscent
+		dc.drawBitmap(dc.getWidth() - layout[20] /* bottomRowIconX */ - floorsIcon.getWidth(), layout[21] /* bottomRowIconY */, floorsIcon);
 		dc.drawText(halfWidth + layout[5] /* centerOffsetX */, layout[18] /* bottomRowUpperTextY */, layout[32] /* bottomRowFont */,
-			(calories == null ? 0 : calories).format("%d"), 2 /* Gfx.TEXT_JUSTIFY_LEFT */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
+			(totalAscent == null ? 0 : totalAscent).format("%d"), 2 /* Gfx.TEXT_JUSTIFY_LEFT */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
 
 		// Set grey colour for day counts
 		dc.setColor(0x555555 /* Gfx.COLOR_DK_GRAY */, -1 /* Gfx.COLOR_TRANSPARENT */);
@@ -486,9 +479,9 @@ class WalkerView extends Ui.DataField {
 		dc.drawText(halfWidth - layout[5] /* centerOffsetX */, layout[19] /* bottomRowLowerTextY */, layout[32] /* bottomRowFont */,
 			(daySteps == null ? 0 : daySteps).format("%d"), 0 /* Gfx.TEXT_JUSTIFY_RIGHT */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
 
-		// Render day calories
+		// Render day total floors
 		dc.drawText(halfWidth + layout[5] /* centerOffsetX */, layout[19] /* bottomRowLowerTextY */, layout[32] /* bottomRowFont */,
-			(dayCalories == null ? 0 : dayCalories).format("%d"), 2 /* Gfx.TEXT_JUSTIFY_LEFT */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
+			(floorsClimbed == null ? 0 : floorsClimbed).format("%d"), 2 /* Gfx.TEXT_JUSTIFY_LEFT */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
 
 		// Render battery
 		dc.setColor(batteryIconColour, -1 /* Gfx.COLOR_TRANSPARENT */);
@@ -497,10 +490,6 @@ class WalkerView extends Ui.DataField {
 		dc.setColor(batteryTextColour, -1 /* Gfx.COLOR_TRANSPARENT */);
 		dc.drawText(halfWidth + layout[23] /* batteryX */, layout[22] /* batteryY */ - 1, layout[33] /* batteryFont */,
 			battery.format("%d") + "%", 1 /* Gfx.TEXT_JUSTIFY_CENTER */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
-
-		if (WalkerView has :view32) {
-			view32.onUpdate(self, dc);
-		}
 	}
 
 	function formatTime(milliseconds, short) {
