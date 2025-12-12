@@ -1,9 +1,12 @@
+import Toybox.Lang;
 using Toybox.WatchUi as Ui;
 using Toybox.Application as App;
 using Toybox.Math as Math;
 using Toybox.UserProfile as User;
 using Toybox.Graphics as Gfx;
 using Toybox.FitContributor as Fit;
+
+typedef AnyNumber as Numeric or Integer;
 
 class WalkerView extends Ui.DataField {
 
@@ -13,10 +16,10 @@ class WalkerView extends Ui.DataField {
 	 * call functions etc. It makes the code hard to read, but it's necessary to squeeze the required functionality into the available memory space.
 	 */
 
-	var is24Hour = false;
+	var is24Hour as Boolean = false;
 
 	var previousDarkMode;
-	var darkModeFromSetting = false;
+	var darkModeFromSetting as Boolean = false;
 
 	var stepsIcon;
 	var floorsIcon;
@@ -29,18 +32,18 @@ class WalkerView extends Ui.DataField {
 	var paceOrSpeedData;
 	var heartRateData;
 
-	var previousDaySteps = 0;
-	var stepsWhenTimerBecameActive = 0;
-	var activityStepsAtPreviousLap = 0;
-	var consolidatedSteps = 0;
+	var previousDaySteps as Integer = 0;
+	var stepsWhenTimerBecameActive as Integer = 0;
+	var activityStepsAtPreviousLap as Integer = 0;
+	var consolidatedSteps as Integer = 0;
 
 	// User definable settings. Stored as numbers rather than enums because enums waste valuable memory.
-	var paceOrSpeedMode = 0;
-	var heartRateMode = 0;
-	var showHeartRateZone = false;
-	var showSpeedInsteadOfPace = false;
+	var paceOrSpeedMode as Integer = 0;
+	var heartRateMode as Integer = 0;
+	var showHeartRateZone as Boolean = false;
+	var showSpeedInsteadOfPace as Boolean = false;
 
-	var timerActive = false;
+	var timerActive as Boolean = false;
 
 	var kmOrMileInMetersDistance;
 	var kmOrMileInKmPace;
@@ -48,17 +51,17 @@ class WalkerView extends Ui.DataField {
 	var distanceUnitsLabel;
 
 	// Calculated values that change on every call to compute()
-	var steps;
-	var lapSteps;
+	var steps as Integer?;
+	var lapSteps as Integer?;
 	var averagePaceOrSpeed;
 	var distance;
 	var heartRate;
 	var heartRateZone;
 	var paceOrSpeed;
 	var time;
-	var daySteps;
-	var totalAscent;
-	var floorsClimbed;
+	var daySteps as Integer?;
+	var totalAscent as AnyNumber = 0.0;
+	var floorsClimbed as Integer = 0;
 	var stepGoalProgress;
 
 	// FIT contributor fields
@@ -89,8 +92,8 @@ class WalkerView extends Ui.DataField {
 		var stepsUnits = Ui.loadResource(Rez.Strings.stepsUnits);
 
 		// Create FIT contributor fields
-		stepsActivityField = createField("steps", 0, 6 /* Fit.DATA_TYPE_UINT32 */, { :mesgType => Fit.MESG_TYPE_SESSION, :units => stepsUnits });
-		stepsLapField = createField("steps", 1, 6 /* Fit.DATA_TYPE_UINT32 */, { :mesgType => Fit.MESG_TYPE_LAP, :units => stepsUnits });
+		stepsActivityField = createField("steps", 0, FitContributor.DATA_TYPE_UINT32 /* 6 = Fit.DATA_TYPE_UINT32 */, { :mesgType => Fit.MESG_TYPE_SESSION, :units => stepsUnits });
+		stepsLapField = createField("steps", 1, FitContributor.DATA_TYPE_UINT32 /* 6 = Fit.DATA_TYPE_UINT32 */, { :mesgType => Fit.MESG_TYPE_LAP, :units => stepsUnits });
 
 		// Set initial steps FIT contributions to zero
 		stepsActivityField.setData(0);
@@ -98,7 +101,7 @@ class WalkerView extends Ui.DataField {
 	}
 
 	// Called on initialization and when settings change (from a hook in WalkerApp.mc)
-	function readSettings() {
+	function readSettings() as Void {
 
 		var deviceSettings = System.getDeviceSettings();
 		var app = Application.getApp();
@@ -150,17 +153,17 @@ class WalkerView extends Ui.DataField {
 		timerActive = false;
 	}
 
-	function timerStart() {
+	function timerStart() as Void {
 		stepsWhenTimerBecameActive = ActivityMonitor.getInfo().steps;
 		timerActive = true;
 	}
 
-	function timerStop() {
+	function timerStop() as Void {
 		consolidatedSteps = steps;
 		timerActive = false;
 	}
 
-	function compute(info) {
+	function compute(info) as Void {
 
 		var activityMonitorInfo = ActivityMonitor.getInfo();
 
@@ -251,11 +254,11 @@ class WalkerView extends Ui.DataField {
 
 		// Total Ascent and Total Floors
 		totalAscent = info.totalAscent;
-		// if (activityMonitorInfo has :floorsClimbed) {
-		floorsClimbed = activityMonitorInfo.floorsClimbed;
-		// } else {
-		// 	floorsClimbed = 0;
-		// }
+		if (activityMonitorInfo has :floorsClimbed) {
+			floorsClimbed = activityMonitorInfo.floorsClimbed;
+		} else {
+			floorsClimbed = 0;
+		}
 	}
 
 	function onUpdate(dc) {
@@ -434,7 +437,7 @@ class WalkerView extends Ui.DataField {
 
 		if (showHeartRateZone && heartRateZone != null) {
 			dc.setColor(heartRateZoneTextColour, -1 /* Gfx.COLOR_TRANSPARENT */);
-			dc.drawText(halfWidth, hrIconY + (hrIconWidth / 2) - 3, 0 /* Gfx.FONT_XTINY */,
+			dc.drawText(halfWidth, hrIconY + (hrIconWidth / 2) - 3, Toybox.Graphics.FONT_XTINY /* Gfx.FONT_XTINY */,
 				heartRateZone.toString(), 1 /* Gfx.TEXT_JUSTIFY_CENTER */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
 		}
 
@@ -492,7 +495,7 @@ class WalkerView extends Ui.DataField {
 			battery.format("%d") + "%", 1 /* Gfx.TEXT_JUSTIFY_CENTER */ | 4 /* Gfx.TEXT_JUSTIFY_VCENTER */);
 	}
 
-	function formatTime(milliseconds, short) {
+	function formatTime(milliseconds as AnyNumber, short as Boolean) as String {
 		if (milliseconds != null && milliseconds > 0) {
 			var hours = null;
 			var minutes = Math.floor(milliseconds / 60000).toNumber();
@@ -513,7 +516,7 @@ class WalkerView extends Ui.DataField {
 		}
 	}
 
-	function formatDistance(distance) {
+	function formatDistance(distance as AnyNumber) as String {
 		if (distance != null && distance > 0) {
 			if (distance >= 1000) {
 				return distance.format("%d");

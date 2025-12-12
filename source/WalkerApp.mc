@@ -1,3 +1,4 @@
+import Toybox.Lang;
 using Toybox.WatchUi as Ui;
 using Toybox.Application as App;
 
@@ -23,7 +24,7 @@ class WalkerApp extends App.AppBase {
 
 	function getInitialView() {
 		mainView = new WalkerView();
-		return [mainView];
+		return [mainView] as Array<Ui.View>;
 	}
 
 }
