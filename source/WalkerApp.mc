@@ -1,7 +1,7 @@
 using Toybox.WatchUi as Ui;
 using Toybox.Application as App;
 
-class WalkerApp extends App.AppBase {
+class WalkerAppAlt extends App.AppBase {
 	
 	var mainView;
 	

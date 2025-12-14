@@ -21,7 +21,7 @@ class WalkerView extends Ui.DataField {
 	var darkModeFromSetting = false;
 	
 	var stepsIcon;
-	var caloriesIcon;
+	var floorsIcon;
 	
 	var batteryIconColour;
 	var batteryTextColour;
@@ -59,8 +59,8 @@ class WalkerView extends Ui.DataField {
 	var paceOrSpeed;
 	var time;
 	var daySteps;
-	var calories;
-	var dayCalories;
+	var totalAscent;
+	var floorsClimbed;
 	var stepGoalProgress;
 	
 	// FIT contributor fields
@@ -95,6 +95,7 @@ class WalkerView extends Ui.DataField {
 			consolidatedSteps = steps;
 		}
 		
+		// var stepsLabel = Ui.loadResource(Rez.Strings.steps);
 		var stepsUnits = Ui.loadResource(Rez.Strings.stepsUnits);
 		
 		// Create FIT contributor fields
@@ -294,9 +295,13 @@ class WalkerView extends Ui.DataField {
 				: daySteps / activityMonitorInfo.stepGoal.toFloat()
 			: 0;
 		
-		// Calories
-		calories = info.calories;
-		dayCalories = activityMonitorInfo.calories;
+		// Total Ascent and Total Floors
+		totalAscent = info.totalAscent;
+		// if (activityMonitorInfo has :floorsClimbed) {
+		floorsClimbed = activityMonitorInfo.floorsClimbed;
+		// } else {
+		// 	floorsClimbed = 0;
+		// }
 		
 		// Add step data to the circular queue
 		if (time != null && time > 0 && info.elapsedDistance != null && info.elapsedDistance > 0 && steps != null && steps > 0) {
@@ -417,8 +422,8 @@ class WalkerView extends Ui.DataField {
 		timeText = "8:88:88";
 		steps = 88888;
 		daySteps = 88888;
-		calories = 88888;
-		dayCalories = 88888;
+		totalAscent = 88888;
+		floorsClimbed = 88888;
 		stepGoalProgress = 0.75;
 		shrinkMiddleText = true;
 		*/
@@ -432,8 +437,8 @@ class WalkerView extends Ui.DataField {
 		timeText = "23:31";
 		steps = 2331;
 		daySteps = 7490;
-		calories = 135;
-		dayCalories = 1742;
+		totalAscent = 135;
+		floorsClimbed = 1742;
 		stepGoalProgress = 0.75;
 		*/
 		
@@ -441,7 +446,7 @@ class WalkerView extends Ui.DataField {
 		if (previousDarkMode != darkMode) {
 			previousDarkMode = darkMode;
 			stepsIcon = Ui.loadResource(darkMode ? Rez.Drawables.isd : Rez.Drawables.is);
-			caloriesIcon = Ui.loadResource(darkMode ? Rez.Drawables.icd : Rez.Drawables.ic);
+			floorsIcon = Ui.loadResource(darkMode ? Rez.Drawables.icd : Rez.Drawables.ic);
 		}
 		
 		// Render background
@@ -551,10 +556,10 @@ class WalkerView extends Ui.DataField {
 		dc.drawText(halfWidth - layout[6] /* centerOffsetX */, layout[19] /* bottomRowUpperTextY */, layout[33] /* bottomRowFont */,
 			(steps == null ? 0 : steps).format("%d"), Gfx.TEXT_JUSTIFY_RIGHT | Gfx.TEXT_JUSTIFY_VCENTER);
 		
-		// Render calories
-		dc.drawBitmap(dc.getWidth() - layout[21] /* bottomRowIconX */ - caloriesIcon.getWidth(), layout[22] /* bottomRowIconY */, caloriesIcon);
+		// Render totalAscent
+		dc.drawBitmap(dc.getWidth() - layout[21] /* bottomRowIconX */ - floorsIcon.getWidth(), layout[22] /* bottomRowIconY */, floorsIcon);
 		dc.drawText(halfWidth + layout[6] /* centerOffsetX */, layout[19] /* bottomRowUpperTextY */, layout[33] /* bottomRowFont */,
-			(calories == null ? 0 : calories).format("%d"), Gfx.TEXT_JUSTIFY_LEFT | Gfx.TEXT_JUSTIFY_VCENTER);
+			(totalAscent == null ? 0 : totalAscent).format("%d"), Gfx.TEXT_JUSTIFY_LEFT | Gfx.TEXT_JUSTIFY_VCENTER);
 		
 		// Set grey colour for day counts
 		dc.setColor(layout[35] /* eightColourPalette */ ? Gfx.COLOR_DK_BLUE : Gfx.COLOR_DK_GRAY, Gfx.COLOR_TRANSPARENT);
@@ -563,9 +568,9 @@ class WalkerView extends Ui.DataField {
 		dc.drawText(halfWidth - layout[6] /* centerOffsetX */, layout[20] /* bottomRowLowerTextY */, layout[33] /* bottomRowFont */,
 			(daySteps == null ? 0 : daySteps).format("%d"), Gfx.TEXT_JUSTIFY_RIGHT | Gfx.TEXT_JUSTIFY_VCENTER);
 		
-		// Render day calories
+		// Render day floors
 		dc.drawText(halfWidth + layout[6] /* centerOffsetX */, layout[20] /* bottomRowLowerTextY */, layout[33] /* bottomRowFont */,
-			(dayCalories == null ? 0 : dayCalories).format("%d"), Gfx.TEXT_JUSTIFY_LEFT | Gfx.TEXT_JUSTIFY_VCENTER);
+			(floorsClimbed == null ? 0 : floorsClimbed).format("%d"), Gfx.TEXT_JUSTIFY_LEFT | Gfx.TEXT_JUSTIFY_VCENTER);
 		
 		// Render battery
 		dc.setColor(batteryIconColour, Gfx.COLOR_TRANSPARENT);

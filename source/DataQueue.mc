@@ -4,21 +4,21 @@ import Toybox.Lang;
 class DataQueue {
 
 	var data as Array;
-	var trackAvg = false;
-	var maxSize = 0;
-	var pos = 0;
-	var total = 0.0;
-	var size = 0;
-	var average = 0.0;
+	var trackAvg as Boolean = false;
+	var maxSize as Integer = 0;
+	var pos as Integer = 0;
+	var total as Float = 0.0;
+	var size as Integer = 0;
+	var average as Numeric = 0.0;
 
-	function initialize(arraySize, trackAverage) {
-		data = new[arraySize];
+	function initialize(arraySize as Integer, trackAverage as Boolean) {
+		data = new[arraySize] as Array;
 		maxSize = arraySize;
 		trackAvg = trackAverage;
 	}
 	
 	// Add a new element to the array
-	function add(element) {
+	function add(element as Numeric or Integer) as Void {
 		if (trackAvg) {
 			var oldestVal = data[pos];
 			if (oldestVal != null) { total -= oldestVal; }
@@ -31,8 +31,8 @@ class DataQueue {
 	}
 
 	// Reset all the entries in the array to null
-	function reset() {
-		data = new[maxSize];
+	function reset() as Void {
+		data = new[maxSize] as Array;
 		pos = 0;
 		total = 0.0;
 		size = 0;

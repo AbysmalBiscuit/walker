@@ -9,12 +9,12 @@
             <color>FFFFFF</color>
         </palette>
 	</bitmap>
-	<bitmap id="ic" filename="calories.png" dithering="none">
+	<bitmap id="ic" filename="floors.png" dithering="none">
 		<palette disableTransparency="false">
             <color>000000</color>
         </palette>
 	</bitmap>
-	<bitmap id="icd" filename="calories.png" dithering="none">
+	<bitmap id="icd" filename="floors.png" dithering="none">
 		<palette disableTransparency="false">
             <color>FFFFFF</color>
         </palette>
